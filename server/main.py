@@ -63,6 +63,37 @@ def predict_emotion(data: TextIn):
         "all_scores": dict(zip(result['labels'], result['scores']))
     }
 
+class ChatIn(BaseModel):
+    text: str
+    mood: str
+
+@app.post("/chat")
+def chat_reflection(data: ChatIn):
+    text = data.text.lower()
+    mood = data.mood
+    
+    # Simple Reflection Logic (No heavy AI required)
+    if "why" in text:
+        reply = "It's natural to look for reasons. Sometimes feelings just exist."
+    elif "tired" in text or "sleep" in text:
+        reply = "Rest is productive too. Have you slept well lately?"
+    elif "work" in text or "job" in text:
+        reply = "Work carries a heavy weight. Remember you are more than your output."
+    elif "scared" in text or "afraid" in text:
+        reply = "Fear is just a reaction. You are safe right now."
+    else:
+        # Fallback based on mood
+        if mood == "Anxious":
+            reply = "Take a breath. That anxiety is trying to protect you, but you are safe."
+        elif mood == "Sad":
+            reply = "Be gentle with yourself. This feeling is heavy, but it will pass."
+        elif mood == "Energized":
+            reply = "Hold onto that energy! What is one small thing you can do with it?"
+        else:
+            reply = "I hear you. Tell me more about that."
+            
+    return {"reply": reply}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

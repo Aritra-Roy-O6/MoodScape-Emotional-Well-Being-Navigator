@@ -1,194 +1,551 @@
-import { useState } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, RefreshCw, Play, CheckCircle } from 'lucide-react';
+import { Sparkles, RefreshCw, Play, AlertTriangle, MessageSquare, Send, Clock, X, Pause, CheckCircle2, Home } from 'lucide-react';
 
-// --- DATA: MOOD THEMES ---
-// Maps API emotions to Tailwind colors
-const THEMES = {
-  "Anxious": "bg-indigo-900 text-indigo-50",
-  "Overwhelmed": "bg-slate-800 text-slate-50",
-  "Low": "bg-stone-800 text-stone-100",
-  "Sad": "bg-gray-900 text-gray-200",
-  "Energized": "bg-orange-500 text-white",
-  "Calm": "bg-teal-700 text-teal-50",
-  "Focused": "bg-violet-900 text-violet-50",
-  "Default": "bg-slate-100 text-slate-900"
-};
+const API_URL = "http://localhost:8000";
 
-// --- DATA: RITUALS ---
-// The solution for each emotion
-const RITUALS = {
-  "Anxious": { 
-    title: "4-7-8 Breathing", 
-    steps: ["Sit comfortably.", "Inhale through nose (4s).", "Hold breath (7s).", "Exhale through mouth (8s).", "Repeat 4 times."] 
+const MOODS = {
+  Anxious: { 
+    gradient: 'from-indigo-900 via-indigo-800 to-purple-900',
+    accentColor: 'bg-indigo-500',
+    borderColor: 'border-indigo-400',
+    textColor: 'text-indigo-100',
+    icon: '🌊',
+    ambiance: 'Calm waves wash over you'
   },
-  "Overwhelmed": { 
-    title: "5-4-3-2-1 Grounding", 
-    steps: ["Look around you.", "Name 5 things you see.", "Name 4 things you can feel.", "Name 3 sounds you hear.", "Name 2 smells.", "Name 1 thing you taste."] 
+  Overwhelmed: { 
+    gradient: 'from-slate-900 via-slate-800 to-gray-900',
+    accentColor: 'bg-slate-500',
+    borderColor: 'border-slate-400',
+    textColor: 'text-slate-100',
+    icon: '⚡',
+    ambiance: 'Ground yourself in this moment'
   },
-  "Low": { 
-    title: "The Sunlight Viz", 
-    steps: ["Close your eyes.", "Imagine a warm golden light.", "Feel it hitting your forehead.", "Let it fill your chest.", "Sit in the warmth for 30s."] 
+  Low: { 
+    gradient: 'from-stone-900 via-stone-800 to-neutral-900',
+    accentColor: 'bg-amber-500',
+    borderColor: 'border-amber-400',
+    textColor: 'text-amber-100',
+    icon: '🍂',
+    ambiance: 'Gentle warmth surrounds you'
   },
-  "Sad": { 
-    title: "Hand on Heart", 
-    steps: ["Place your hand on your heart.", "Feel its beat.", "Take a deep breath.", "Say: 'I am doing my best.'", "Say: 'I am safe.'"] 
+  Sad: { 
+    gradient: 'from-gray-900 via-slate-900 to-zinc-900',
+    accentColor: 'bg-blue-400',
+    borderColor: 'border-blue-300',
+    textColor: 'text-blue-100',
+    icon: '🌧️',
+    ambiance: 'You are held and supported'
   },
-  "Energized": { 
-    title: "Channel the Fire", 
-    steps: ["Stand up.", "Shake your arms out.", "Pick ONE big task.", "Set a timer for 20 mins.", "GO."] 
+  Energized: { 
+    gradient: 'from-orange-600 via-red-500 to-pink-600',
+    accentColor: 'bg-yellow-400',
+    borderColor: 'border-yellow-300',
+    textColor: 'text-yellow-100',
+    icon: '🔥',
+    ambiance: 'Channel your vibrant energy'
   },
-  "Calm": { 
-    title: "Gratitude Anchor", 
-    steps: ["You are in a good place.", "Think of one person you love.", "Send them a mental 'Thank You'.", "Smile."] 
+  Calm: { 
+    gradient: 'from-teal-800 via-cyan-700 to-blue-800',
+    accentColor: 'bg-teal-400',
+    borderColor: 'border-teal-300',
+    textColor: 'text-teal-100',
+    icon: '🌿',
+    ambiance: 'Peace flows through you'
   },
-  "Focused": { 
-    title: "Deep Work Entry", 
-    steps: ["Put phone in another room.", "Close all tabs except one.", "Write down your single goal.", "Start."] 
+  Focused: { 
+    gradient: 'from-violet-900 via-purple-800 to-fuchsia-900',
+    accentColor: 'bg-purple-400',
+    borderColor: 'border-purple-300',
+    textColor: 'text-purple-100',
+    icon: '🎯',
+    ambiance: 'Clarity sharpens your mind'
   }
 };
 
-function App() {
-  // State
-  const [input, setInput] = useState("");
-  const [mood, setMood] = useState("Default");
-  const [ritual, setRitual] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0); // For the ritual player
+const RITUALS = {
+  Anxious: { title: "4-7-8 Breathing", steps: ["Sit comfortably", "Inhale through nose (4s)", "Hold breath (7s)", "Exhale slowly (8s)", "Repeat 4 times"] },
+  Overwhelmed: { title: "5-4-3-2-1 Grounding", steps: ["Observe your space", "5 things you see", "4 things you touch", "3 sounds you hear", "2 things you smell"] },
+  Low: { title: "Sunlight Visualization", steps: ["Close your eyes", "Imagine golden light", "Feel it on your forehead", "Let warmth fill your chest", "Breathe in the energy"] },
+  Sad: { title: "Self-Compassion", steps: ["Hand on heart", "Feel your heartbeat", "Take 3 deep breaths", "Say: 'I'm doing my best'", "Say: 'I deserve peace'"] },
+  Energized: { title: "Channel Energy", steps: ["Stand and stretch", "Shake it out", "Pick ONE task", "Set 25-min timer", "Begin with intention"] },
+  Calm: { title: "Gratitude Moment", steps: ["Notice this peace", "Think of someone special", "Send silent thanks", "Feel the connection", "Smile softly"] },
+  Focused: { title: "Deep Work Ritual", steps: ["Silence notifications", "Close extra tabs", "Write your goal", "One centering breath", "Begin focused work"] }
+};
 
-  // Handle Analysis
-  const handleAnalyze = async () => {
+const useStorage = (key, init) => {
+  const [val, setVal] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(key)) || init; } 
+    catch { return init; }
+  });
+  const set = (v) => { setVal(v); localStorage.setItem(key, JSON.stringify(v)); };
+  return [val, set];
+};
+
+const SafetyBanner = ({ mood }) => {
+  if (!['Sad', 'Overwhelmed', 'Low'].includes(mood)) return null;
+  return (
+    <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} 
+      className="mb-3 bg-red-500/20 border-2 border-red-400/40 rounded-xl p-3 backdrop-blur-xl flex-shrink-0">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 text-red-200 flex-shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-red-50 mb-2">You don't have to face this alone</p>
+          <a href="https://findahelpline.com/" target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-lg">
+            Find Support Now →
+          </a>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+function App() {
+  const [view, setView] = useState('input');
+  const [input, setInput] = useState('');
+  const [mood, setMood] = useState(null);
+  const [loading, setLoading] = useState(false);
+  
+  // NEW SIMPLE RITUAL STATE - Just current step index and completion status
+  const [currentStep, setCurrentStep] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState([]);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const autoPlayTimeoutRef = useRef(null);
+  
+  // Chat State
+  const [chatInput, setChatInput] = useState('');
+  const [messages, setMessages] = useState([]);
+  
+  const [history, setHistory] = useStorage('moodHistory', []);
+  const chatEnd = useRef(null);
+
+  // Audio ref for background music (commented out for now)
+  // const audioRef = useRef(null);
+  
+  // Mood-specific background music paths (for future use)
+  // const MOOD_MUSIC = {
+  //   Anxious: '/music/calm-ambient.mp3',
+  //   Overwhelmed: '/music/gentle-meditation.mp3',
+  //   Low: '/music/uplifting-piano.mp3',
+  //   Sad: '/music/soothing-nature.mp3',
+  //   Energized: '/music/upbeat-electronic.mp3',
+  //   Calm: '/music/peaceful-waves.mp3',
+  //   Focused: '/music/lofi-concentration.mp3'
+  // };
+
+  // SIMPLE AUTO-ADVANCE: When playing, wait 5 seconds then go to next step
+  useEffect(() => {
+    if (!isAutoPlaying || !mood || !RITUALS[mood]) return;
+    
+    const ritual = RITUALS[mood];
+    
+    // If we've reached the end, stop
+    if (currentStep >= ritual.steps.length - 1) {
+      setIsAutoPlaying(false);
+      return;
+    }
+    
+    // Wait 5 seconds, then advance
+    autoPlayTimeoutRef.current = setTimeout(() => {
+      setCurrentStep(prev => prev + 1);
+      setCompletedSteps(prev => [...prev, currentStep]);
+    }, 5000);
+    
+    return () => {
+      if (autoPlayTimeoutRef.current) {
+        clearTimeout(autoPlayTimeoutRef.current);
+      }
+    };
+  }, [isAutoPlaying, currentStep, mood]);
+
+  // Background music control (commented out for now)
+  // useEffect(() => {
+  //   if (view === 'ritual' && mood && MOOD_MUSIC[mood]) {
+  //     if (audioRef.current) {
+  //       audioRef.current.pause();
+  //     }
+  //     
+  //     audioRef.current = new Audio(MOOD_MUSIC[mood]);
+  //     audioRef.current.loop = true;
+  //     audioRef.current.volume = 0.3;
+  //     
+  //     const playPromise = audioRef.current.play();
+  //     if (playPromise !== undefined) {
+  //       playPromise.catch(err => console.log('Audio autoplay prevented:', err));
+  //     }
+  //   }
+  //
+  //   return () => {
+  //     if (audioRef.current) {
+  //       audioRef.current.pause();
+  //       audioRef.current = null;
+  //     }
+  //   };
+  // }, [view, mood]);
+
+  useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const analyze = async () => {
     if (!input.trim()) return;
     setLoading(true);
     try {
-      // Call Python Brain
-      const res = await axios.post('http://localhost:8000/predict', { text: input });
+      const res = await fetch(`${API_URL}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: input })
+      });
+      const { emotion } = await res.json();
+      setMood(emotion);
+      setView('ritual');
+      setCurrentStep(0);
+      setCompletedSteps([]);
+      setIsAutoPlaying(false);
+      setMessages([{ sender: 'bot', text: `I sense you're feeling ${emotion.toLowerCase()}. Let's work through this together.` }]);
       
-      const detected = res.data.emotion;
-      setMood(detected);
-      
-      // Load Ritual (Fallback to Calm if emotion not found)
-      setRitual(RITUALS[detected] || RITUALS["Calm"]);
-      setStepIndex(0); // Reset ritual player
-
-    } catch (error) {
-      console.error("API Error:", error);
-      alert("Brain connection failed. Is the python terminal running?");
+      const entry = {
+        id: Date.now(),
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        mood: emotion,
+        text: input.substring(0, 50) + (input.length > 50 ? '...' : '')
+      };
+      setHistory([entry, ...history.slice(0, 4)]);
+    } catch (err) {
+      alert('Unable to connect. Please ensure the server is running.');
     }
     setLoading(false);
   };
 
-  // Reset to start over
-  const reset = () => {
-    setMood("Default");
-    setRitual(null);
-    setInput("");
+  const toggleAutoPlay = () => {
+    setIsAutoPlaying(!isAutoPlaying);
   };
 
+  const goToStep = (index) => {
+    if (autoPlayTimeoutRef.current) {
+      clearTimeout(autoPlayTimeoutRef.current);
+    }
+    setIsAutoPlaying(false);
+    setCurrentStep(index);
+  };
+
+  const completeCurrentStep = () => {
+    if (!completedSteps.includes(currentStep)) {
+      setCompletedSteps([...completedSteps, currentStep]);
+    }
+    
+    const ritual = RITUALS[mood];
+    if (currentStep < ritual.steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const restartRitual = () => {
+    setCurrentStep(0);
+    setCompletedSteps([]);
+    setIsAutoPlaying(true);
+  };
+
+  const sendMsg = async () => {
+    if (!chatInput.trim()) return;
+    const msg = { sender: 'user', text: chatInput };
+    setMessages(m => [...m, msg]);
+    setChatInput('');
+    try {
+      const res = await fetch(`${API_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: chatInput, mood })
+      });
+      const { reply } = await res.json();
+      setMessages(m => [...m, { sender: 'bot', text: reply }]);
+    } catch {
+      setMessages(m => [...m, { sender: 'bot', text: "I'm having trouble connecting right now." }]);
+    }
+  };
+
+  const reset = () => {
+    if (autoPlayTimeoutRef.current) {
+      clearTimeout(autoPlayTimeoutRef.current);
+    }
+    setIsAutoPlaying(false);
+    setView('input');
+    setMood(null);
+    setInput('');
+    setCurrentStep(0);
+    setCompletedSteps([]);
+    setMessages([]);
+  };
+
+  const gradient = mood ? MOODS[mood]?.gradient : 'from-slate-900 via-indigo-900 to-purple-900';
+  const moodConfig = mood ? MOODS[mood] : null;
+  const ritual = mood ? RITUALS[mood] : null;
+
   return (
-    <div className={`min-h-screen transition-colors duration-1000 flex items-center justify-center p-4 ${THEMES[mood] || THEMES.Default}`}>
-      <div className="max-w-md w-full">
+    <div className={`h-screen bg-gradient-to-br ${gradient} transition-all duration-1000 flex flex-col p-4 relative overflow-hidden`}>
+      
+      {/* Animated background particles for mood */}
+      {mood && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {[...Array(20)].map((_, i) => (
+            <motion.div
+              key={i}
+              className={`absolute w-2 h-2 ${moodConfig.accentColor} rounded-full opacity-20`}
+              initial={{ 
+                x: Math.random() * window.innerWidth, 
+                y: Math.random() * window.innerHeight 
+              }}
+              animate={{
+                x: Math.random() * window.innerWidth,
+                y: Math.random() * window.innerHeight,
+              }}
+              transition={{
+                duration: 10 + Math.random() * 20,
+                repeat: Infinity,
+                repeatType: "reverse"
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="w-full max-w-6xl mx-auto relative z-10 flex flex-col h-full">
         
-        {/* HEADER */}
-        <header className="mb-8 flex justify-between items-center">
-          <h1 className="text-3xl font-bold tracking-tighter flex items-center gap-2">
-            <Sparkles className="w-6 h-6" /> MoodScape
-          </h1>
-          {mood !== "Default" && (
-            <button onClick={reset} className="opacity-70 hover:opacity-100 transition">
-              <RefreshCw className="w-5 h-5" />
+        <motion.header initial={{ opacity: 0 }} animate={{ opacity: 1 }} 
+          className="flex-shrink-0 mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-7 h-7 text-white" />
+            <h1 className="text-3xl font-bold text-white">MoodScape</h1>
+          </div>
+          {mood && (
+            <button onClick={reset} className="p-2.5 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur transition">
+              <Home className="w-5 h-5 text-white" />
             </button>
           )}
-        </header>
+        </motion.header>
+
+        <SafetyBanner mood={mood} />
 
         <AnimatePresence mode="wait">
           
-          {/* VIEW 1: INPUT SCREEN */}
-          {mood === "Default" && (
-            <motion.div 
-              key="input"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-4"
-            >
-              <label className="text-xl font-medium opacity-80 block">
-                How are you feeling right now?
-              </label>
-              <textarea 
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="I'm feeling overwhelmed by deadlines..."
-                className="w-full h-40 p-4 rounded-2xl bg-white/50 backdrop-blur-sm border-none text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-black/20 outline-none text-lg resize-none shadow-xl"
-              />
-              <button 
-                onClick={handleAnalyze}
-                disabled={loading || !input}
-                className="w-full py-4 bg-black text-white rounded-xl font-bold text-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-2xl"
-              >
-                {loading ? "Analyzing..." : "Check In"}
-              </button>
+          {view === 'input' && (
+            <motion.div key="input" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+              
+              <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-2xl flex flex-col">
+                <label className="block text-xl font-semibold text-white mb-3">
+                  How are you feeling right now?
+                </label>
+                <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="I'm feeling..." 
+                  className="flex-1 w-full p-3 bg-white/90 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/50 text-base resize-none shadow-inner"
+                  autoFocus />
+                <motion.button onClick={analyze} disabled={loading || !input.trim()}
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  className="w-full mt-3 py-3 bg-white text-slate-900 rounded-xl font-bold text-base hover:bg-white/90 transition disabled:opacity-50 shadow-xl">
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+                        <RefreshCw className="w-5 h-5" />
+                      </motion.div>
+                      Analyzing...
+                    </span>
+                  ) : 'Check In'}
+                </motion.button>
+              </div>
+
+              <div className="flex flex-col min-h-0">
+                <div className="flex items-center gap-2 text-white/70 mb-3">
+                  <Clock className="w-4 h-4" />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider">Recent Check-ins</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                  {history.length > 0 ? (
+                    <>
+                      {history.map(log => (
+                        <motion.div key={log.id} whileHover={{ scale: 1.02 }}
+                          className="bg-white/5 hover:bg-white/10 backdrop-blur rounded-xl p-3 border border-white/10 transition flex items-center justify-between">
+                          <div className="font-semibold text-white text-sm">{log.mood}</div>
+                          <span className="text-xs text-white/50">{log.date}</span>
+                        </motion.div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10 text-center">
+                      <div className="text-3xl mb-2">📝</div>
+                      <p className="text-white/60 text-sm">Your check-in history will appear here</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </motion.div>
           )}
 
-          {/* VIEW 2: RITUAL PLAYER */}
-          {mood !== "Default" && ritual && (
-            <motion.div 
-              key="result"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white/10 backdrop-blur-md rounded-3xl p-8 shadow-2xl border border-white/20"
-            >
-              {/* Emotion Tag */}
-              <div className="mb-6">
-                <span className="text-sm uppercase tracking-widest opacity-70">Detected Mood</span>
-                <h2 className="text-4xl font-black mt-1">{mood}</h2>
+          {view === 'ritual' && ritual && moodConfig && (
+            <motion.div key="ritual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="flex-1 flex flex-col min-h-0">
+              
+              {/* Mood Header - Compact */}
+              <div className="text-center mb-4 flex-shrink-0">
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="text-5xl mb-2">
+                  {moodConfig.icon}
+                </motion.div>
+                <h2 className="text-3xl font-bold text-white mb-1">{mood}</h2>
+                <p className={`text-base ${moodConfig.textColor} italic mb-1`}>{moodConfig.ambiance}</p>
+                <p className="text-white/70 text-sm">{ritual.title}</p>
               </div>
 
-              {/* Ritual Card */}
-              <div className="bg-white text-slate-900 rounded-2xl p-6 shadow-lg">
-                <div className="flex items-center gap-3 mb-4 border-b border-gray-100 pb-4">
-                  <Play className="w-5 h-5 text-blue-600 fill-blue-600" />
-                  <h3 className="font-bold text-lg">{ritual.title}</h3>
-                </div>
-
-                {/* Step Player */}
-                <div className="min-h-[120px] flex items-center justify-center text-center">
-                  <AnimatePresence mode="wait">
-                    <motion.p 
-                      key={stepIndex}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      className="text-2xl font-medium"
-                    >
-                      {ritual.steps[stepIndex]}
-                    </motion.p>
-                  </AnimatePresence>
-                </div>
-
-                {/* Controls */}
-                <div className="mt-6 flex justify-between items-center">
-                  <div className="flex gap-1">
-                    {ritual.steps.map((_, i) => (
-                      <div key={i} className={`h-1.5 w-6 rounded-full transition-colors ${i === stepIndex ? 'bg-blue-600' : 'bg-gray-200'}`} />
-                    ))}
+              {/* Main Ritual Card - Flexible Height */}
+              <div className="flex-1 max-w-2xl mx-auto w-full bg-white/95 backdrop-blur-xl rounded-2xl p-6 shadow-2xl mb-3 flex flex-col min-h-0">
+                
+                {/* Progress Bar - Compact */}
+                <div className="mb-4 flex-shrink-0">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-medium text-slate-600">Progress</span>
+                    <span className="text-xs font-bold text-slate-900">
+                      {currentStep + 1} / {ritual.steps.length}
+                    </span>
                   </div>
-                  
-                  <button 
-                    onClick={() => {
-                      if (stepIndex < ritual.steps.length - 1) {
-                        setStepIndex(stepIndex + 1);
-                      } else {
-                        reset(); // Complete
-                      }
-                    }}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition flex items-center gap-2"
-                  >
-                    {stepIndex < ritual.steps.length - 1 ? "Next Step" : "Complete"}
-                    {stepIndex === ritual.steps.length - 1 && <CheckCircle className="w-4 h-4" />}
-                  </button>
+                  <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <motion.div 
+                      className={`h-full ${moodConfig.accentColor} rounded-full`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${((currentStep + 1) / ritual.steps.length) * 100}%` }}
+                      transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                    />
+                  </div>
+                </div>
+
+                {/* Current Step Display - Takes available space */}
+                <div className="flex-1 flex items-center justify-center py-4 min-h-0">
+                  <motion.div
+                    key={currentStep}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="text-center">
+                    
+                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full ${moodConfig.accentColor} text-white text-xl font-bold mb-3 shadow-lg`}>
+                      {completedSteps.includes(currentStep) ? <CheckCircle2 className="w-6 h-6" /> : currentStep + 1}
+                    </div>
+                    
+                    <p className="text-2xl font-bold text-slate-900 leading-relaxed px-4">
+                      {ritual.steps[currentStep]}
+                    </p>
+                  </motion.div>
+                </div>
+
+                {/* Step Navigation Dots - Compact */}
+                <div className="flex justify-center gap-1.5 mb-4 flex-shrink-0">
+                  {ritual.steps.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => goToStep(i)}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        i === currentStep 
+                          ? `w-6 ${moodConfig.accentColor}` 
+                          : completedSteps.includes(i)
+                            ? 'w-1.5 bg-green-500'
+                            : 'w-1.5 bg-slate-300 hover:bg-slate-400'
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {/* Control Buttons - Compact */}
+                <div className="flex gap-2 flex-shrink-0">
+                  {currentStep < ritual.steps.length - 1 ? (
+                    <>
+                      <motion.button 
+                        onClick={toggleAutoPlay}
+                        whileHover={{ scale: 1.02 }} 
+                        whileTap={{ scale: 0.98 }}
+                        className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-lg text-sm ${
+                          isAutoPlaying
+                            ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white hover:from-amber-500 hover:to-orange-600'
+                            : `bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700`
+                        }`}>
+                        {isAutoPlaying ? (
+                          <><Pause className="w-4 h-4" /> Pause</>
+                        ) : (
+                          <><Play className="w-4 h-4 fill-current" /> {currentStep === 0 ? "Start" : "Resume"}</>
+                        )}
+                      </motion.button>
+
+                      <motion.button 
+                        onClick={completeCurrentStep}
+                        whileHover={{ scale: 1.02 }} 
+                        whileTap={{ scale: 0.98 }}
+                        className="flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 text-sm">
+                        <CheckCircle2 className="w-4 h-4" /> Next
+                      </motion.button>
+                    </>
+                  ) : (
+                    <motion.button 
+                      onClick={restartRitual}
+                      whileHover={{ scale: 1.02 }} 
+                      whileTap={{ scale: 0.98 }}
+                      className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-lg bg-gradient-to-r from-slate-700 to-slate-900 text-white hover:from-slate-800 hover:to-black text-sm">
+                      <RefreshCw className="w-4 h-4" /> Start Over
+                    </motion.button>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom Actions - Compact */}
+              <div className="flex justify-center flex-shrink-0">
+                <motion.button 
+                  onClick={() => setView('chat')} 
+                  whileHover={{ scale: 1.05 }} 
+                  whileTap={{ scale: 0.95 }}
+                  className="px-5 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-xl border border-white/30 text-white rounded-xl font-semibold transition flex items-center gap-2 shadow-lg text-sm">
+                  <MessageSquare className="w-4 h-4" />
+                  Talk to AI
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
+
+          {view === 'chat' && (
+            <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="flex-1 max-w-3xl mx-auto w-full bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl flex flex-col min-h-0">
+              
+              <div className="p-3 border-b border-gray-200 flex items-center justify-between bg-white/50 rounded-t-2xl flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <h3 className="font-bold text-slate-900 text-sm">Reflection Space</h3>
+                </div>
+                <button onClick={() => setView('ritual')} className="p-1.5 hover:bg-gray-100 rounded-lg transition">
+                  <X className="w-4 h-4 text-slate-600" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+                {messages.map((msg, i) => (
+                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm ${
+                      msg.sender === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-gray-100 text-slate-800 rounded-bl-sm'
+                    }`}>
+                      {msg.text}
+                    </div>
+                  </motion.div>
+                ))}
+                <div ref={chatEnd} />
+              </div>
+
+              <div className="p-3 border-t border-gray-200 bg-white/50 rounded-b-2xl flex-shrink-0">
+                <div className="flex gap-2">
+                  <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMsg()}
+                    placeholder="Share what's on your mind..."
+                    className="flex-1 px-3 py-2 bg-gray-100 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <motion.button onClick={sendMsg} disabled={!chatInput.trim()}
+                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                    className="p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl transition">
+                    <Send className="w-4 h-4" />
+                  </motion.button>
                 </div>
               </div>
             </motion.div>
