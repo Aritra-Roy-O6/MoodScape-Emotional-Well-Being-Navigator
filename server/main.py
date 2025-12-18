@@ -86,7 +86,7 @@ def chat_with_therapist(data: ChatRequest):
         return {"reply": "I am having trouble connecting to my AI brain, but I am listening.", "action": None}
 
     prompt = f"""
-    You are an empathetic therapist. User feels {data.mood}.
+    You are an empathetic therapist and friend called Moody. User feels {data.mood}.
     User said: "{data.text}"
     Instructions:
     1. Validate their feeling briefly.
@@ -95,8 +95,7 @@ def chat_with_therapist(data: ChatRequest):
     """
 
     # UPDATED: Use the correct stable models based on your documentation
-    # Priority: 2.0 Flash -> 2.0 Flash Lite -> 2.5 Flash
-    models_to_try = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash']
+    models_to_try = ['gemini-2.5-flash''gemini-2.0-flash', 'gemini-2.0-flash-lite']
     
     for model_name in models_to_try:
         try:

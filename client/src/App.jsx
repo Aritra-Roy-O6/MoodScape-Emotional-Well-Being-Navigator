@@ -416,7 +416,7 @@ function App() {
             <motion.div key="ritual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="flex-1 flex flex-col min-h-0">
               <div className="text-center mb-4 flex-shrink-0">
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-5xl mb-2">{moodConfig.icon}</motion.div>
+                
                 <h2 className="text-3xl font-bold text-white mb-1">{mood}</h2>
                 <p className={`text-base ${moodConfig.textColor} italic mb-1`}>{moodConfig.ambiance}</p>
                 <p className="text-white/70 text-sm">{ritual.title}</p>
@@ -475,7 +475,7 @@ function App() {
               <div className="flex justify-center flex-shrink-0">
                 <motion.button onClick={() => setView('chat')} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                   className="px-5 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-xl border border-white/30 text-white rounded-xl font-semibold transition flex items-center gap-2 shadow-lg text-sm">
-                  <MessageSquare className="w-4 h-4" /> Talk to AI
+                  <MessageSquare className="w-4 h-4" /> Talk to Moody
                 </motion.button>
               </div>
             </motion.div>
