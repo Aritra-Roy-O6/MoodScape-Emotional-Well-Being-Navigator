@@ -95,7 +95,7 @@ def chat_with_therapist(data: ChatRequest):
     """
 
     # UPDATED: Use the correct stable models based on your documentation
-    models_to_try = ['gemini-2.5-flash''gemini-2.0-flash', 'gemini-2.0-flash-lite']
+    models_to_try = ['gemini-2.5-flash','gemini-2.0-flash', 'gemini-2.0-flash-lite']
     
     for model_name in models_to_try:
         try:
